@@ -1,0 +1,30 @@
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# dotenv environment files
+.env
+.env.*
+
+# Logs
+logs/
+*.log
+log.txt
+push-log.txt
+package-lock.json
+
+# MongoDB files (if any local dump)
+dump/
+
+# OS-specific
+.DS_Store
+Thumbs.db
+
+# IDEs
+.vscode/
+.idea/
+
+# Cache
+.cache/

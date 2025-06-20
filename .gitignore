@@ -14,6 +14,7 @@ logs/
 log.txt
 push-log.txt
 package-lock.json
+service-account-key.json
 
 # MongoDB files (if any local dump)
 dump/

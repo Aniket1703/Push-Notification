@@ -1,65 +1,66 @@
-const { google } = require('google-auth-library');
+const { google } = require('googleapis');
+const { JWT } = require('google-auth-library');
 const fetch = require('node-fetch');
 
-// Load and parse base64-encoded service account from environment variable
+// ✅ FIX: decode properly before parsing
 const serviceAccount = JSON.parse(
-  Buffer.from(process.env.GCJ, 'base64').toString('utf8')
+  Buffer.from(process.env.GOOGLE_CREDENTIALS_JSON, 'base64').toString('utf-8')
 );
 
-const SCOPES = ['https://www.googleapis.com/auth/firebase.messaging'];
-const PROJECT_ID = serviceAccount.project_id;
+// Now you can create JWT client
+const jwtClient = new JWT({
+  email: serviceAccount.client_email,
+  key: serviceAccount.private_key,
+  scopes: ['https://www.googleapis.com/auth/firebase.messaging'],
+});
 
-async function getAccessToken() {
-  const client = new google.auth.JWT({
-    email: serviceAccount.client_email,
-    key: serviceAccount.private_key,
-    scopes: SCOPES,
-  });
-  const tokens = await client.authorize();
-  return tokens.access_token;
-}
+const FCM_URL = `https://fcm.googleapis.com/v1/projects/${serviceAccount.project_id}/messages:send`;
 
 async function sendNotification(devices, filename, status, errorMsg) {
-  const accessToken = await getAccessToken();
-
   const bodyText =
     status === 'success'
-      ? ` File pushed: ${filename}`
-      : ` Push failed: ${filename}`;
+      ? `✅ File pushed: ${filename}`
+      : `❌ Push failed: ${filename}`;
+
+  const messagePayload = {
+    message: {
+      notification: {
+        title: 'Push Status',
+        body: bodyText,
+      },
+      data: {
+        filename,
+        status,
+        error: errorMsg || '',
+      },
+    },
+  };
+
+  const accessToken = await jwtClient.authorize().then(res => res.access_token);
 
   for (const device of devices) {
-    const payload = {
+    const finalPayload = {
+      ...messagePayload,
       message: {
-        notification: {
-          title: 'Push Status',
-          body: bodyText,
-        },
-        data: {
-          filename,
-          status,
-          error: errorMsg || '',
-        },
+        ...messagePayload.message,
         token: device.token,
       },
     };
 
     try {
-      const response = await fetch(
-        `https://fcm.googleapis.com/v1/projects/${PROJECT_ID}/messages:send`,
-        {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(payload),
-        }
-      );
+      const res = await fetch(FCM_URL, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(finalPayload),
+      });
 
-      const result = await response.json();
-      console.log(`Push sent to ${device.token}:`, result);
-    } catch (error) {
-      console.error(`Failed to send push to ${device.token}:`, error.message);
+      const result = await res.json();
+      console.log(` Sent to ${device.token}:`, result);
+    } catch (err) {
+      console.error(` Error sending to ${device.token}:`, err.message);
     }
   }
 }

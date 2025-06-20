@@ -4,7 +4,7 @@ const fetch = require('node-fetch');
 
 // ✅ FIX: decode properly before parsing
 const serviceAccount = JSON.parse(
-  Buffer.from(process.env.GOOGLE_CREDENTIALS_JSON, 'base64').toString('utf-8')
+  Buffer.from(process.env.GCJ, 'base64').toString('utf-8')
 );
 
 // Now you can create JWT client
@@ -19,8 +19,8 @@ const FCM_URL = `https://fcm.googleapis.com/v1/projects/${serviceAccount.project
 async function sendNotification(devices, filename, status, errorMsg) {
   const bodyText =
     status === 'success'
-      ? `✅ File pushed: ${filename}`
-      : `❌ Push failed: ${filename}`;
+      ? `File pushed: ${filename}`
+      : `Push failed: ${filename}`;
 
   const messagePayload = {
     message: {

@@ -90,10 +90,7 @@ app.post('/test-notify', async (req, res) => {
 // Connect to MongoDB & Start Server
 async function startServer() {
   try {
-    await mongoose.connect(process.env.MONGO_URI, {
-      useNewUrlParser: true,
-      useUnifiedTopology: true,
-    });
+    await mongoose.connect(process.env.MONGO_URI); // No need for extra options
     console.log('✅ MongoDB connected');
 
     app.listen(PORT, () => {

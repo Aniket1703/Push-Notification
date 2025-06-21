@@ -27,6 +27,6 @@
     "google-auth-library": "^10.1.0",
     "googleapis": "^150.0.1",
     "mongoose": "^8.15.2",
-    "node-fetch": "^3.3.2"
+    "node-fetch": "^2.7.0"
   }
 }

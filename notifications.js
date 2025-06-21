@@ -1,13 +1,10 @@
-const { google } = require('googleapis');
 const { JWT } = require('google-auth-library');
 const fetch = require('node-fetch');
 
-// ✅ FIX: decode properly before parsing
 const serviceAccount = JSON.parse(
   Buffer.from(process.env.GCJ, 'base64').toString('utf-8')
 );
 
-// Now you can create JWT client
 const jwtClient = new JWT({
   email: serviceAccount.client_email,
   key: serviceAccount.private_key,
@@ -16,33 +13,48 @@ const jwtClient = new JWT({
 
 const FCM_URL = `https://fcm.googleapis.com/v1/projects/${serviceAccount.project_id}/messages:send`;
 
-async function sendNotification(devices, filename, status, errorMsg) {
+async function sendNotification(devices = [], filename, status = 'success', errorMsg = '') {
+  const results = [];
+
+  if (!devices || devices.length === 0) {
+    return { success: false, message: 'No devices to send notification to', results };
+  }
+
   const bodyText =
     status === 'success'
       ? `File pushed: ${filename}`
       : `Push failed: ${filename}`;
 
-  const messagePayload = {
-    message: {
-      notification: {
-        title: 'Push Status',
-        body: bodyText,
-      },
-      data: {
-        filename,
-        status,
-        error: errorMsg || '',
-      },
+  const baseMessage = {
+    notification: {
+      title: 'Push Status',
+      body: bodyText,
+    },
+    data: {
+      filename,
+      status,
+      error: errorMsg || '',
     },
   };
 
-  const accessToken = await jwtClient.authorize().then(res => res.access_token);
+  let accessToken;
+  try {
+    const credentials = await jwtClient.authorize();
+    accessToken = credentials.access_token;
+    if (!accessToken) throw new Error('No access token received');
+  } catch (err) {
+    return {
+      success: false,
+      message: 'Failed to authorize with Firebase',
+      error: err.message,
+      results,
+    };
+  }
 
   for (const device of devices) {
-    const finalPayload = {
-      ...messagePayload,
+    const payload = {
       message: {
-        ...messagePayload.message,
+        ...baseMessage,
         token: device.token,
       },
     };
@@ -54,15 +66,39 @@ async function sendNotification(devices, filename, status, errorMsg) {
           Authorization: `Bearer ${accessToken}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(finalPayload),
+        body: JSON.stringify(payload),
       });
 
       const result = await res.json();
-      console.log(` Sent to ${device.token}:`, result);
+      if (result.name) {
+        results.push({
+          token: device.token,
+          success: true,
+          message: 'Notification sent successfully',
+          responseId: result.name,
+        });
+      } else {
+        results.push({
+          token: device.token,
+          success: false,
+          message: result.error?.message || 'Unknown error from FCM',
+        });
+      }
     } catch (err) {
-      console.error(` Error sending to ${device.token}:`, err.message);
+      results.push({
+        token: device.token,
+        success: false,
+        message: `Exception occurred: ${err.message}`,
+      });
     }
   }
+
+  const overallSuccess = results.every(r => r.success);
+  return {
+    success: overallSuccess,
+    message: overallSuccess ? 'All notifications sent successfully' : 'Some notifications failed',
+    results,
+  };
 }
 
 module.exports = { sendNotification };

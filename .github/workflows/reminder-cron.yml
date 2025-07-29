@@ -2,8 +2,8 @@ name: Trigger Send Reminder API
 
 on:
   schedule:
-    - cron: '*/2 * * * *'  # every 2 minutes
-  workflow_dispatch:
+    - cron: '*/2 * * * *'  # Every 2 minutes
+  workflow_dispatch:       # Allow manual trigger
 
 jobs:
   trigger-api:
@@ -11,8 +11,8 @@ jobs:
 
     steps:
       - name: Call /send-due-reminders API
+        env:
+          REMINDER_API_URL: ${{ secrets.REMINDER_API_URL }}
         run: |
           curl -X POST "$REMINDER_API_URL" \
           -H "Content-Type: application/json"
-        env:
-          REMINDER_API_URL: ${{ secrets.REMINDER_API_URL }}

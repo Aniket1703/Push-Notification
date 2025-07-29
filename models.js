@@ -23,8 +23,18 @@ const deviceSchema = new mongoose.Schema(
   { versionKey: false }
 );
 
+
+const reminderSchema = new mongoose.Schema({
+  token: { type: String, required: true },
+  title: String,
+  body: String,
+  time: { type: Date, required: true }, // When to send
+}, { versionKey: false });
+
+
 //  Models
 const PushLog = mongoose.model('PushLog', pushLogSchema);
 const Device = mongoose.model('Device', deviceSchema);
+const Reminder = mongoose.model('Reminder', reminderSchema);
 
-module.exports = { PushLog, Device };
+module.exports = { PushLog, Device, Reminder };

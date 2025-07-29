@@ -13,28 +13,19 @@ const jwtClient = new JWT({
 
 const FCM_URL = `https://fcm.googleapis.com/v1/projects/${serviceAccount.project_id}/messages:send`;
 
-async function sendNotification(devices = [], filename, status = 'success', errorMsg = '') {
+async function sendNotification(devices = [], title = 'Reminder', body = '', data = {}) {
   const results = [];
 
   if (!devices || devices.length === 0) {
     return { success: false, message: 'No devices to send notification to', results };
   }
 
-  const bodyText =
-    status === 'success'
-      ? `File pushed: ${filename}`
-      : `Push failed: ${filename}`;
-
   const baseMessage = {
     notification: {
-      title: 'Push Status',
-      body: bodyText,
+      title,
+      body,
     },
-    data: {
-      filename,
-      status,
-      error: errorMsg || '',
-    },
+    data,
   };
 
   let accessToken;

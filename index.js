@@ -5,7 +5,7 @@ const cors = require('cors');
 const bodyParser = require('body-parser');
 
 const { sendNotification } = require('./notifications');
-const { PushLog, Device } = require('./models');
+const { PushLog, Device, Reminder } = require('./models');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -40,21 +40,38 @@ app.post('/notify', async (req, res) => {
   }
 
   try {
-    const log = new PushLog({ filename, status, error});
+    // Save to logs
+    const log = new PushLog({ filename, status, error });
     await log.save();
 
+    // Get devices
     const devices = await Device.find();
     if (devices.length === 0) {
       return res.status(404).json({ success: false, error: 'No devices registered' });
     }
 
-    const sendResult = await sendNotification(devices, filename, status, error);
+    // Build title & body for notification
+    const title = 'Push Status';
+    const body =
+      status === 'success'
+        ? `File pushed: ${filename}`
+        : `Push failed: ${filename}`;
 
-    if (sendResult.failed && sendResult.failed.length > 0) {
+    // Send notification
+    const sendResult = await sendNotification(devices, title, body, {
+      filename,
+      status,
+      error,
+    });
+
+    // Check if any failed
+    const failed = sendResult.results.filter(r => !r.success);
+
+    if (failed.length > 0) {
       return res.status(207).json({
         success: false,
         message: 'Some notifications failed',
-        failed: sendResult.failed
+        failed,
       });
     }
 
@@ -64,6 +81,7 @@ app.post('/notify', async (req, res) => {
     return res.status(500).json({ success: false, error: 'Failed to send notification' });
   }
 });
+
 
 // Fetch Logs
 app.get('/logs', async (req, res) => {
@@ -86,6 +104,57 @@ app.post('/test-notify', async (req, res) => {
   await sendNotification([{ token }], filename, status, error);
   res.json({ success: true });
 });
+
+app.post('/schedule-reminder', async (req, res) => {
+  const { token, title, body, delayInMs } = req.body;
+
+  if (!token || !title || !body || !delayInMs) {
+    return res.status(400).json({ success: false, message: 'Missing fields' });
+  }
+
+  const remindAt = new Date(Date.now() + delayInMs);
+  await Reminder.create({ token, title, body, time: remindAt });
+
+  res.json({ success: true, message: 'Reminder scheduled successfully' });
+});
+
+app.post('/send-due-reminders', async (req, res) => {
+  try {
+    const now = new Date();
+
+    const dueReminders = await Reminder.find({ time: { $lte: now } });
+    if (dueReminders.length === 0) {
+      return res.status(200).json({ success: true, message: 'No due reminders at this time.' });
+    }
+
+    const sendResults = [];
+
+    for (const r of dueReminders) {
+      const result = await sendNotification(
+        [{ token: r.token }],
+        r.title || 'Reminder',
+        r.body || '',
+        {} // Optional data object
+      );
+      sendResults.push(result);
+    }
+
+    const idsToDelete = dueReminders.map(r => r._id);
+    await Reminder.deleteMany({ _id: { $in: idsToDelete } });
+
+    res.json({
+      success: true,
+      sentCount: sendResults.length,
+      message: 'Reminders sent and cleared successfully.',
+      results: sendResults,
+    });
+  } catch (error) {
+    console.error('Error sending reminders:', error);
+    res.status(500).json({ success: false, error: 'Failed to send reminders' });
+  }
+});
+
+
 
 // Connect to MongoDB & Start Server
 async function startServer() {
